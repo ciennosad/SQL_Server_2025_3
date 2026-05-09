@@ -67,4 +67,8 @@
 - 1 Hợp đồng → có N Lịch sử giao dịch (1-N)
 
 
+<img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/ffb82105-820b-446d-b613-639d94c0dcd0" />
+Hình ảnh đã tạo thành công các bảng
+
+
 
