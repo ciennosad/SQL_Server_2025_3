@@ -73,7 +73,8 @@
 Hình ảnh đã tạo thành công các bảng
 
 ## 3.2 Cài đặt SQL
-- 1. Đăng ký hợp đồng mới (Vay tiền)
+**1. Đăng ký hợp đồng mới (Vay tiền)**
+
 
 ```
 
@@ -209,7 +210,8 @@ Hình ảnh kết quả chạy thành công
 
 Hình ảnh thêm dữ liệu người cấm cố tài sản
 
-- 2. Tính toán công nợ thời gian thực
+
+**2. Tính toán công nợ thời gian thực**
 
 
 
@@ -365,7 +367,7 @@ FROM HOPDONG;
 Hình ảnh tính lãi từng ngày theo gợi ý (Gốc + Lãi đơn + Lãi kép)
 
 
-- 3.3 Xử lý trả nợ và hoàn trả tài sản
+**3.3 Xử lý trả nợ và hoàn trả tài sản**
 
 
 
@@ -494,7 +496,7 @@ Hình ảnh chạy chương trình thành công
 Hình ảnh kết quả trả nợ 1 phần và thanh toán toàn bộ số gốc và lãi
 
 
-- 3.4 Truy vấn danh sách nợ xấu (Nợ Khó đòi)
+**3.4 Truy vấn danh sách nợ xấu (Nợ Khó đòi)**
 
 **Thêm thông tin người vay**
 
