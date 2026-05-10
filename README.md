@@ -886,7 +886,7 @@ WHERE h.MaHD = @MaHD_run;
 <img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/4fdd3f5f-48bd-46b2-a3c3-e159ce3b33e1" />
 
 
-Hình ảnh kết quả 'Đã thanh lý tài sản ' sang 'Đã bán thanh lý '
+Hình ảnh kết quả **Đã thanh lý tài sản** sang **Đã bán thanh lý** 
 
 
 
