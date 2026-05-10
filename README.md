@@ -223,9 +223,6 @@ Hình ảnh thêm dữ liệu người cấm cố tài sản
   ```
 
 
-
-
-
 -- Tính số tiền cần trả cho hợp đồng tại ngày mục tiêu
 IF OBJECT_ID('fn_CalcMoneyContract', 'FN') IS NOT NULL
     DROP FUNCTION fn_CalcMoneyContract;
@@ -658,7 +655,433 @@ WHERE h.Deadline1 < CAST(GETDATE() AS DATE)
 Hình ảnh kết quả danh sách những người vay quá hạn và số tiền cần phải thanh toán sau 1 tháng
 
 
+**3.5 Quản lý thanh lý tài sản**
 
+ **Trigger trạng thái hợp đồng**
+
+
+```
+
+
+
+
+IF OBJECT_ID('trg_CheckOverdue', 'TR') IS NOT NULL
+    DROP TRIGGER trg_CheckOverdue;
+GO
+
+CREATE TRIGGER trg_CheckOverdue
+ON HOPDONG
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    
+    IF UPDATE(TrangThaiHD) OR UPDATE(Deadline1)
+    BEGIN
+       
+           UPDATE h
+    SET TrangThaiHD = N'Quá hạn (nợ xấu)'
+    FROM HOPDONG h
+    INNER JOIN inserted i ON h.MaHD = i.MaHD
+    WHERE i.TrangThaiHD = N'Đang vay' 
+      AND CAST(GETDATE() AS DATE) > i.Deadline1;
+END
+GO
+
+
+DECLARE @MaHD_run INT = 82; 
+
+PRINT N'Đang test với MaHD: ' + CAST(@MaHD_run AS VARCHAR(10));
+
+
+SELECT 
+    MaHD,
+    TenKH,
+    SoTienVay,
+    Deadline1,
+    TrangThaiHD,
+    CASE 
+        WHEN Deadline1 < CAST(GETDATE() AS DATE) THEN N' ĐÃ QUÁ HẠN (nợ xấu)'
+        ELSE N' CHƯA QUÁ HẠN'
+    END AS TrangThaiDeadline
+FROM HOPDONG h
+JOIN KHACHHANG k ON h.MaKH = k.MaKH
+WHERE MaHD = @MaHD_run;
+
+UPDATE HOPDONG 
+SET SoTienVay = SoTienVay  
+WHERE MaHD = @MaHD_run;
+
+SELECT 
+    MaHD, 
+    TrangThaiHD AS [Trạng thái sau Trigger 1],
+    Deadline1,
+    CAST(GETDATE() AS DATE) AS NgayHienTai
+FROM HOPDONG 
+WHERE MaHD = @MaHD_run;
+
+
+
+```
+
+
+
+<img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/2f9e3af9-5973-4695-8de4-bba110a10378" />
+
+
+Hình ảnh hiển thị kết quả chuyển từ đang vay sang đã quá hạn (nợ xấu)
+
+
+**Trigger trạng thái tài sản**
+
+
+<img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/5dae500c-1ca1-4711-b2c6-68ad5c4b825c" />
+
+Hình ảnh thêm thông tin người vay quá hạn Deadline 2
+
+
+
+```
+
+
+
+-- TRIGGER 2: Tài sản chuyển sang "Sẵn sàng thanh lý" khi HĐ quá hạn & vượt Deadline2
+
+IF OBJECT_ID('trg_ReadyForSale', 'TR') IS NOT NULL
+    DROP TRIGGER trg_ReadyForSale;
+GO
+
+CREATE TRIGGER trg_ReadyForSale
+ON HOPDONG
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    
+    IF UPDATE(TrangThaiHD)
+    BEGIN
+        UPDATE ct
+        SET TrangThaiTS = N'Sẵn sàng thanh lý'
+        FROM CHI_TIET_CAMDO ct
+        INNER JOIN inserted i ON ct.MaHD = i.MaHD
+        WHERE i.TrangThaiHD = N'Quá hạn (nợ xấu)' 
+          AND CAST(GETDATE() AS DATE) > i.Deadline2
+          AND ct.TrangThaiTS = N'Đang cầm cố';
+    END
+END
+GO
+
+
+DECLARE @MaHD_run INT = 94;
+
+SELECT 
+    h.MaHD,
+    k.TenKH,                  
+    h.SoTienVay,              
+    h.Deadline1,
+    h.Deadline2,
+    CAST(GETDATE() AS DATE) AS NgayHienTai,
+    CASE 
+        WHEN h.TrangThaiHD = N'Quá hạn (nợ xấu)' THEN N' Đúng trạng thái'
+        ELSE N' Sai trạng thái - Phải là "Quá hạn (nợ xấu)"'
+    END AS KiemTraTrangThai,
+    CASE 
+        WHEN h.Deadline2 < CAST(GETDATE() AS DATE) THEN N' Quán hạn (nợ xấu)'
+        ELSE N' Chưa quá Deadline2'
+    END AS KiemTraDeadline2
+FROM HOPDONG h
+INNER JOIN KHACHHANG k ON h.MaKH = k.MaKH  
+WHERE h.MaHD = @MaHD_run;
+
+UPDATE HOPDONG 
+SET SoTienVay = SoTienVay + 1  
+WHERE MaHD = @MaHD_run;
+
+SELECT 
+    ct.MaCT,
+    ct.TenTaiSan,
+    ct.TrangThaiTS AS [Trạng thái tài sản sau Trigger 2]
+FROM CHI_TIET_CAMDO ct
+WHERE ct.MaHD = @MaHD_run;
+
+
+```
+
+
+<img width="1918" height="1078" alt="image" src="https://github.com/user-attachments/assets/3e02b297-4bb2-46d0-9a54-9c0d2f616adc" />
+
+
+Hình ảnh 'Quá hạn (nợ xấu)' chuyển sang 'Sẵn sàng thanh lý'
+
+
+**Trigger trạng thái tài sản 2**
+
+```
+
+
+-- TRIGGER 3: Tài sản chuyển sang "Đã bán thanh lý" 
+-- khi HĐ chuyển sang "Đã thanh lý tài sản"
+
+IF OBJECT_ID('trg_SoldAssets', 'TR') IS NOT NULL
+    DROP TRIGGER trg_SoldAssets;
+GO
+
+CREATE TRIGGER trg_SoldAssets
+ON HOPDONG
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    IF UPDATE(TrangThaiHD)
+    BEGIN
+        UPDATE ct
+        SET TrangThaiTS = N'Đã bán thanh lý'  
+        FROM CHI_TIET_CAMDO ct
+        INNER JOIN inserted i ON ct.MaHD = i.MaHD
+        WHERE i.TrangThaiHD = N'Đã thanh lý tài sản' 
+          AND ct.TrangThaiTS <> N'Đã bán thanh lý';
+    END
+END
+GO
+
+
+DECLARE @MaHD_run INT = 94;
+
+
+UPDATE HOPDONG 
+SET TrangThaiHD = N'Đã thanh lý tài sản'
+WHERE MaHD = @MaHD_run;
+
+
+SELECT 
+    ct.MaCT,
+    k.TenKH,                    
+    ct.TenTaiSan,
+    ct.TrangThaiTS AS [Trạng thái tài sản sau Trigger 3]
+FROM CHI_TIET_CAMDO ct
+INNER JOIN HOPDONG h ON ct.MaHD = h.MaHD  
+INNER JOIN KHACHHANG k ON h.MaKH = k.MaKH  
+WHERE ct.MaHD = @MaHD_run;
+
+
+SELECT 
+    h.MaHD,
+    k.TenKH,                                
+    h.TrangThaiHD AS [Trạng thái hợp đồng],
+    ct.TenTaiSan,
+    ct.TrangThaiTS AS [Trạng thái tài sản]
+FROM HOPDONG h
+LEFT JOIN CHI_TIET_CAMDO ct ON h.MaHD = ct.MaHD
+INNER JOIN KHACHHANG k ON h.MaKH = k.MaKH   
+WHERE h.MaHD = @MaHD_run;
+
+
+
+```
+
+
+<img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/4fdd3f5f-48bd-46b2-a3c3-e159ce3b33e1" />
+
+
+Hình ảnh kết quả 'Đã thanh lý tài sản ' sang 'Đã bán thanh lý '
+
+
+
+## 4. Các sự kiện bổ sung
+
+**Gia hạn hợp đồng**
+
+<img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/88572b1e-4acd-4e40-beb4-14d43798a920" />
+
+
+Hình ảnh bảng lịch sử giao dịch
+
+
+```
+
+
+-- STORED PROCEDURE: sp_GiaHanHopDong
+
+
+IF OBJECT_ID('sp_GiaHanHopDong', 'P') IS NOT NULL
+    DROP PROCEDURE sp_GiaHanHopDong;
+GO
+
+CREATE PROCEDURE sp_GiaHanHopDong
+    @MaHD INT,
+    @NewDeadline1 DATE,
+    @NewDeadline2 DATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @CurrentDate DATE = CAST(GETDATE() AS DATE);
+    DECLARE @Principal DECIMAL(15,2);
+    DECLARE @TotalDebt DECIMAL(15,2);
+    DECLARE @InterestDue DECIMAL(15,2);
+    DECLARE @Status NVARCHAR(50);
+    DECLARE @TenKH NVARCHAR(100);
+    
+    BEGIN TRANSACTION;
+    
+    BEGIN TRY
+        SELECT @Status = TrangThaiHD, @Principal = SoTienVay
+        FROM HOPDONG WHERE MaHD = @MaHD;
+        
+        IF @Principal IS NULL
+        BEGIN
+            RAISERROR(N'Hợp đồng số %d không tồn tại!', 16, 1, @MaHD);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+        
+        IF @Status = N'Đã thanh lý tài sản'
+        BEGIN
+            RAISERROR(N'Tài sản đã thanh lý, không được gia hạn.', 16, 1);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+        
+        SET @TotalDebt = dbo.fn_CalcMoneyContract(@MaHD, @CurrentDate);
+        SET @InterestDue = @TotalDebt - @Principal;
+        
+        IF @InterestDue <= 0
+        BEGIN
+            RAISERROR(N'Không có lãi phát sinh để gia hạn. (Hợp đồng chưa quá hạn)', 16, 1);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+        
+        IF @NewDeadline1 <= @CurrentDate OR @NewDeadline2 <= @NewDeadline1
+        BEGIN
+            RAISERROR(N'Deadline mới phải ở tương lai và Deadline2 > Deadline1.', 16, 1);
+            ROLLBACK TRANSACTION;
+            RETURN;
+        END
+        
+        INSERT INTO LICH_SU_GIAO_DICH (MaHD, NgayGD, LoaiGD, SoTienTra, NguoiThu, DuNoConLai, GhiChu)
+        VALUES (
+            @MaHD, 
+            GETDATE(), 
+            N'Gia hạn hợp đồng',
+            @InterestDue, 
+            N'Hệ thống', 
+            @Principal, 
+            N'Thanh toán lãi để gia hạn hợp đồng'
+        );
+        
+        UPDATE HOPDONG 
+        SET Deadline1 = @NewDeadline1,
+            Deadline2 = @NewDeadline2,
+            TrangThaiHD = N'Đang vay',
+            NgayLap = GETDATE() 
+        WHERE MaHD = @MaHD;
+        
+        SELECT @TenKH = TenKH FROM KHACHHANG k
+        INNER JOIN HOPDONG h ON k.MaKH = h.MaKH
+        WHERE h.MaHD = @MaHD;
+        
+        COMMIT TRANSACTION;
+        
+        SELECT 
+            N'Gia hạn thành công' AS ThongBao,
+            @MaHD AS MaHopDong,
+            @TenKH AS TenKhachHang,
+            FORMAT(@InterestDue, 'N0', 'vi-vn') AS LaiDaThanhToan_VND,
+            @Principal AS GocConLai,
+            FORMAT(@Principal, 'N0', 'vi-vn') AS GocConLai_VND,
+            @NewDeadline1 AS Deadline1_Moi,
+            @NewDeadline2 AS Deadline2_Moi,
+            DATEDIFF(DAY, @CurrentDate, @NewDeadline1) AS SoNgayDuocGiaHan;
+            
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        
+        DECLARE @ErrorMessage NVARCHAR(4000) = ERROR_MESSAGE();
+        DECLARE @ErrorSeverity INT = ERROR_SEVERITY();
+        DECLARE @ErrorState INT = ERROR_STATE();
+        
+        RAISERROR (@ErrorMessage, @ErrorSeverity, @ErrorState);
+    END CATCH
+END
+GO
+
+DECLARE @MaHD_run INT = 83;
+
+SELECT 
+    h.MaHD,
+    k.TenKH,
+    h.SoTienVay AS Goc,
+    h.Deadline1,
+    h.Deadline2,
+    h.TrangThaiHD,
+    dbo.fn_CalcMoneyContract(h.MaHD, CAST(GETDATE() AS DATE)) AS TongNoHienTai
+FROM HOPDONG h
+JOIN KHACHHANG k ON h.MaKH = k.MaKH
+WHERE h.MaHD = @MaHD_run;
+
+DECLARE @Deadline1 DATE = DATEADD(MONTH, 6, GETDATE());
+DECLARE @Deadline2 DATE = DATEADD(MONTH, 12, GETDATE());
+
+EXEC sp_GiaHanHopDong 
+    @MaHD = @MaHD_run,
+    @NewDeadline1 = @Deadline1,
+    @NewDeadline2 = @Deadline2;
+
+SELECT 
+    MaHD,
+    Deadline1 AS [Deadline1 mới],
+    Deadline2 AS [Deadline2 mới],
+    TrangThaiHD AS [Trạng thái mới],
+    NgayLap AS [Ngày gia hạn]
+FROM HOPDONG
+WHERE MaHD = @MaHD_run;
+
+IF OBJECT_ID('sp_XemLichSuThanhToan', 'P') IS NOT NULL
+    DROP PROCEDURE sp_XemLichSuThanhToan;
+GO
+CREATE PROCEDURE sp_XemLichSuThanhToan
+    @MaHD INT = NULL 
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    SELECT 
+        lg.MaGD AS [STT],
+        FORMAT(lg.NgayGD, 'dd/MM/yyyy HH:mm') AS [Thời gian],
+        lg.LoaiGD AS [Loại giao dịch],
+        FORMAT(lg.SoTienTra, 'N0', 'vi-vn') AS [Số tiền trả],
+        lg.NguoiThu AS [Người thu],
+        FORMAT(lg.DuNoConLai, 'N0', 'vi-vn') AS [Dư nợ còn lại],
+        lg.GhiChu AS [Ghi chú]
+    FROM LICH_SU_GIAO_DICH lg
+    WHERE @MaHD IS NULL OR lg.MaHD = @MaHD
+    ORDER BY lg.NgayGD DESC;
+    
+    SELECT 
+        COUNT(*) AS TongGiaoDich,
+        SUM(SoTienTra) AS TongTienDaThu,
+        FORMAT(SUM(SoTienTra), 'N0', 'vi-vn') AS TongTien_VND
+    FROM LICH_SU_GIAO_DICH
+    WHERE @MaHD IS NULL OR MaHD = @MaHD;
+END
+GO
+
+EXEC sp_XemLichSuThanhToan @MaHD = 83;
+
+
+
+```
+
+
+<img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/150c487e-c3e8-4de5-97ec-5d0d9a8adcea" />
+
+
+Hình ảnh gia hạn hợp đồng khi khách thanh toán toàn bộ tiền lãi và lưu lại lịch sử hợp đồng mỗi lần trả
 
 
 
