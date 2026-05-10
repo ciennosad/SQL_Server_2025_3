@@ -212,10 +212,18 @@ Hình ảnh thêm dữ liệu người cấm cố tài sản
 - 2. Tính toán công nợ thời gian thực
 
 
+
+
+
+
+
+
   ```
 
 
-  -- FUNCTION 1: fn_CalcMoneyContract
+
+
+
 -- Tính số tiền cần trả cho hợp đồng tại ngày mục tiêu
 IF OBJECT_ID('fn_CalcMoneyContract', 'FN') IS NOT NULL
     DROP FUNCTION fn_CalcMoneyContract;
@@ -294,6 +302,11 @@ GO
 
 
 
+
+
+
+
+
 ```
 
 
@@ -306,7 +319,15 @@ GO
 Hình ảnh chương trình tính lãi chạy thành công
 
 
+
+
+
+
 ```
+
+
+
+
 
 
 SELECT dbo.fn_CalcMoneyContract(81, GETDATE()) AS SoTienCanTra;
@@ -345,6 +366,9 @@ Hình ảnh tính lãi từng ngày theo gợi ý (Gốc + Lãi đơn + Lãi ké
 
 
 - 3.3 Xử lý trả nợ và hoàn trả tài sản
+
+
+
 
 
 ```
